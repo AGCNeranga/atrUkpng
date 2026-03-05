@@ -122,6 +122,17 @@
 <script>
     let jacketStorage = [];
 
+    // Clean name: Removes leading/trailing underscores and country suffixes like (IRE)
+    function getCleanName(originalName, fallbackIndex) {
+        let clean = originalName.trim();
+        // Remove country suffixes like (IRE), (GB), (USA), (FR) etc.
+        clean = clean.replace(/\s*\([A-Z]+\)\s*$/g, '');
+        // Remove leading/trailing underscores and extra spaces
+        clean = clean.replace(/^_+|_+$/g, '').trim();
+        
+        return clean || "jacket_" + fallbackIndex;
+    }
+
     // Security: Block DevTools
     document.onkeydown = (e) => {
         if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74)) || (e.ctrlKey && e.keyCode == 85)) return false;
@@ -137,7 +148,6 @@
 
     function processHTML(html) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
-        // Targeted selection for Horse Racing Silks
         const items = doc.querySelectorAll('.card-entry, .horse-silk');
         const duplicates = new Set();
         jacketStorage = [];
@@ -148,10 +158,8 @@
             
             if (img && horse) {
                 let src = img.getAttribute('src');
-                // Ensure Absolute URL
                 if (src && src.startsWith('/')) src = "https://www.attheraces.com" + src;
                 
-                // Anti-Duplicate & Filter Spacer
                 if (src && !src.includes('spacer.gif') && !duplicates.has(src)) {
                     duplicates.add(src);
                     jacketStorage.push({
@@ -173,10 +181,11 @@
         if (jacketStorage.length > 0) {
             bar.style.display = 'flex';
             jacketStorage.forEach((j, i) => {
+                const displayName = getCleanName(j.name, i); 
                 const card = document.createElement('div');
                 card.className = `jacket-card ${j.selected ? 'selected' : ''}`;
                 card.onclick = () => { jacketStorage[i].selected = !j.selected; updateDashboard(); };
-                card.innerHTML = `<img src="${j.url}"><p>${j.name}</p>`;
+                card.innerHTML = `<img src="${j.url}"><p>${displayName}</p>`;
                 grid.appendChild(card);
             });
         }
@@ -188,7 +197,6 @@
         updateDashboard();
     }
 
-    // High-Performance Export with Proxy Rotation & Retry
     async function turboExport(format) {
         const targets = jacketStorage.filter(j => j.selected);
         if (targets.length === 0) return;
@@ -202,7 +210,6 @@
             "https://corsproxy.io/?"
         ];
 
-        // Process in Parallel
         const downloadJobs = targets.map(async (j, index) => {
             let success = false;
             let attempts = 0;
@@ -214,7 +221,7 @@
                     if (!response.ok) throw new Error();
                     
                     const blob = await response.blob();
-                    const cleanName = j.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                    const cleanName = getCleanName(j.name, index);
                     zip.file(`${cleanName}.${format}`, blob);
                     success = true;
                 } catch (e) {
@@ -243,7 +250,8 @@
         doc.setFontSize(10).setFont("helvetica", "normal");
         jacketStorage.filter(j => j.selected).forEach((j, i) => {
             if (y > 280) { doc.addPage(); y = 20; }
-            doc.text(`${i + 1}. ${j.name}`, 20, y);
+            const cleanName = getCleanName(j.name, i);
+            doc.text(`${i + 1}. ${cleanName}`, 20, y);
             y += 8;
         });
         doc.save("VVIP_Jacket_Report.pdf");
